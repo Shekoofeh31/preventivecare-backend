@@ -1,0 +1,73 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production
+.venv
+venv/
+ENV/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+*.log
+logs/
+log/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# FastAPI specific
+__pycache__/
+.pytest_cache/
+
+# Socket.IO
+socket_data/
+socket_sessions/
+
+# Temporary files
+tmp/
+temp/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+htmlcov/
+
+# Database files
+*.sqlite
+*.sqlite3
+*.db
+
+# Frontend build files if stored in backend
+static/build/
+public/build/
