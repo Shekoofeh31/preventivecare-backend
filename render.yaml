@@ -1,0 +1,25 @@
+{
+  "name": "maxai-backend",
+  "version": "1.0.0",
+  "description": "Backend for MaxAI Health Platform",
+  "main": "main.py",
+  "scripts": {  },  // Empty scripts object
+  "dependencies": {
+    "socket.io": "^4.7.4"
+  },
+  "keywords": [
+    "fastapi",
+    "backend",
+    "health",
+    "api",
+    "python",
+    "uvicorn",
+    "socket.io"
+  ],
+  "author": "MaxAI Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  }
+}
