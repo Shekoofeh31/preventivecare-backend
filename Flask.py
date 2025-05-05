@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, render_template
 import os
 
 app = Flask(__name__)
@@ -12,5 +12,10 @@ def venv_status():
     is_active = is_virtual_environment_active()
     return jsonify({'is_active': is_active})
 
+@app.route('/')
+def index():
+    return render_template('index.html')
+
 if __name__ == '__main__':
     app.run(debug=True)
+
