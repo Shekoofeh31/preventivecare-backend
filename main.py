@@ -13,6 +13,10 @@ from datetime import datetime
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
+# Explicitly load environment variables from .env file
+load_dotenv(dotenv_path=".env")
+print("Loaded ENV variables:", os.environ)  # Debugging
+
 # Import config
 from config import settings  # Assuming you have a 'config.py' with settings
 
@@ -23,9 +27,6 @@ from routes.preventive_featured import router as preventive_featured_router
 from routes.search import router as search_router
 # Updated import for symptom checker
 from routes.symptom_checker import router as symptom_checker_router
-
-# Load environment variables
-load_dotenv()  # Load variables from .env file into the environment
 
 # Configure logging
 logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL, "INFO")) # default to INFO if LOG_LEVEL is not set
