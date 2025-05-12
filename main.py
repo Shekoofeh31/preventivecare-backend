@@ -27,6 +27,8 @@ from routes.preventive_featured import router as preventive_featured_router
 from routes.search import router as search_router
 # Updated import for symptom checker
 from routes.symptom_checker import router as symptom_checker_router
+# Add import for health exploration
+from routes.health_exploration import router as health_exploration_router
 
 # Configure logging
 logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL, "INFO")) # default to INFO if LOG_LEVEL is not set
@@ -83,6 +85,13 @@ app.include_router(
     symptom_checker_router,
     prefix=f"{settings.API_PREFIX}/symptom-checker",
     tags=["Symptom Checker"]
+)
+
+# Include health exploration router with explicit prefix
+app.include_router(
+    health_exploration_router,
+    prefix=f"{settings.API_PREFIX}/health-exploration",
+    tags=["Health Exploration"]
 )
 
 # Create a Socket.IO instance
