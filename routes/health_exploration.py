@@ -8,8 +8,11 @@ from pydantic import BaseModel, Field
 # Configure logging
 logger = logging.getLogger(__name__)
 
-# Create router
-router = APIRouter()
+# Create router with proper prefix
+router = APIRouter(
+    prefix="/api/health-exploration",  # Added prefix to match API path
+    tags=["Health Exploration"]
+)
 
 # Define models
 class PaperCategory(BaseModel):
