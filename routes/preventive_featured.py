@@ -161,6 +161,39 @@ async def get_featured_articles(limit: int = Query(3, ge=1, le=10)):
     sorted_articles = sorted(articles_db, key=lambda x: x["published_date"], reverse=True)
     return sorted_articles[:limit]
 
+# Added missing endpoint for preventive-featured/articles
+@router.get("/preventive-featured/articles", response_model=List[Article])
+async def get_preventive_featured_articles(
+    category: Optional[str] = Query(None, description="Filter by category"),
+    tag: Optional[str] = Query(None, description="Filter by tag"),
+    limit: int = Query(10, ge=1, le=50, description="Number of articles to return"),
+    offset: int = Query(0, ge=0, description="Number of articles to skip")
+):
+    """Get a list of preventive healthcare articles with optional filtering."""
+    filtered_articles = articles_db
+    
+    # Apply category filter if provided
+    if category:
+        filtered_articles = [
+            article for article in filtered_articles
+            if category in article["categories"]
+        ]
+    
+    # Apply tag filter if provided
+    if tag:
+        filtered_articles = [
+            article for article in filtered_articles
+            if tag in article["tags"]
+        ]
+    
+    # Sort by published date (newest first)
+    filtered_articles.sort(key=lambda x: x["published_date"], reverse=True)
+    
+    # Apply pagination
+    paginated_articles = filtered_articles[offset:offset + limit]
+    
+    return paginated_articles
+
 # Endpoints for Resources
 @router.get("/resources", response_model=List[PreventiveResource])
 async def get_resources(
