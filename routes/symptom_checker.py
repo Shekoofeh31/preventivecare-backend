@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Request, Depends
 from pydantic import BaseModel, Field, validator
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 import json
 import os
 import time
@@ -20,10 +20,10 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
-# Initialize router - CHANGED: Removed the prefix, will be added in main.py
+# Initialize router
 router = APIRouter(
-    # prefix is now handled in main.py
-    tags=["Symptom Checker"],  # Updated tag name for consistency
+    prefix="/api/symptom-checker",  # Add prefix to match API path
+    tags=["Symptom Checker"],
     responses={404: {"description": "Not found"}},
 )
 
@@ -33,14 +33,14 @@ if not openai_api_key:
     logger.warning("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
 
 # Configure Proxies (if needed)
-proxy_url = os.getenv("PROXY_URL")  # Get proxy URL from environment variable
+proxy_url = os.getenv("PROXY_URL")
 proxies = None
 if proxy_url:
     proxies = {
         "http": proxy_url,
         "https": proxy_url,
     }
-    logger.info(f"Using proxy: {proxy_url}")  # Log that proxy is being used
+    logger.info(f"Using proxy: {proxy_url}")
 else:
     logger.info("No proxy configured.")
 
@@ -63,18 +63,22 @@ def log_api_request(endpoint, status_code, processing_time):
 
 # Models
 class SymptomRequest(BaseModel):
-    age: int
-    gender: str
-    symptoms: List[str]
-    medical_history: Optional[List[str]] = []
-    allergies: Optional[List[str]] = []
-    medications: Optional[List[str]] = []
+    age: int = Field(..., description="Patient's age")
+    gender: str = Field(..., description="Patient's gender")
+    symptoms: List[str] = Field(..., description="List of symptoms")
+    medical_history: Optional[List[str]] = Field(default=[], description="Optional medical history")
+    allergies: Optional[List[str]] = Field(default=[], description="Optional allergies")
+    medications: Optional[List[str]] = Field(default=[], description="Optional medications")
+
+class Condition(BaseModel):
+    condition: str = Field(..., description="Name of the condition")
+    probability: str = Field(..., description="Probability level (High/Medium/Low)")
 
 class SymptomResponse(BaseModel):
-    possible_conditions: List[dict]
-    recommendations: List[str]
-    severity_level: str
-    seek_medical_attention: bool
+    possible_conditions: List[Condition] = Field(..., description="List of possible conditions")
+    recommendations: List[str] = Field(..., description="List of recommendations")
+    severity_level: str = Field(..., description="Severity level (Low/Medium/High)")
+    seek_medical_attention: bool = Field(..., description="Whether medical attention should be sought")
 
 # Helper function to log symptom checks
 async def log_symptom_check(age: int, gender: str):
@@ -118,7 +122,7 @@ def create_symptom_prompt(data: SymptomRequest) -> str:
 
     return prompt
 
-def create_fallback_response():
+def create_fallback_response() -> dict:
     """Create a fallback response when parsing fails."""
     return {
         "possible_conditions": [{"condition": "Could not determine", "probability": "Unknown"}],
@@ -237,7 +241,7 @@ async def analyze_symptoms(symptom_data: SymptomRequest, background_tasks: Backg
 
             # Log API request
             processing_time = time.time() - start_time
-            background_tasks.add_task(log_api_request, "/symptom-checker/analyze", 200, processing_time)
+            background_tasks.add_task(log_api_request, "/api/symptom-checker/analyze", 200, processing_time)
 
             return result
 
