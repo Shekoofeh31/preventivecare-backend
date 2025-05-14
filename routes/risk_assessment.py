@@ -1,8 +1,12 @@
 from fastapi import APIRouter, HTTPException, Body
-from pydantic import BaseModel, Field, PydanticUserError
+from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Any
 import json
 from datetime import datetime
+import logging
+
+# Setup logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -18,25 +22,50 @@ class RiskFactor(BaseModel):
     recommendation: str
 
 class RiskAssessmentRequest(BaseModel):
-    age: int = Field(..., gt=0, lt=120)
-    gender: str = Field(..., pattern="^(male|female|other)$")
-    height: float = Field(..., gt=0)  # in cm
-    weight: float = Field(..., gt=0)  # in kg
-    systolic_bp: Optional[int] = Field(None, gt=0)  # systolic blood pressure
-    diastolic_bp: Optional[int] = Field(None, gt=0)  # diastolic blood pressure
-    cholesterol: Optional[float] = Field(None, ge=0)  # total cholesterol
-    hdl: Optional[float] = Field(None, ge=0)  # HDL cholesterol
-    ldl: Optional[float] = Field(None, ge=0)  # LDL cholesterol
-    triglycerides: Optional[float] = Field(None, ge=0)
-    fasting_glucose: Optional[float] = Field(None, ge=0)
-    smoking: bool = False
-    alcohol_consumption: Optional[str] = Field(None, pattern="^(none|light|moderate|heavy)$")
-    exercise_minutes_per_week: Optional[int] = Field(None, ge=0)
-    family_history: Optional[Dict[str, bool]] = None
-    chronic_conditions: Optional[List[str]] = None
-    medications: Optional[List[str]] = None
-    sleep_hours: Optional[float] = Field(None, ge=0, le=24)
-    stress_level: Optional[int] = Field(None, ge=0, le=10)
+    age: int = Field(..., gt=0, lt=120, example=35)
+    gender: str = Field(..., example="male")
+    height: float = Field(..., gt=0, example=175.0)  # in cm
+    weight: float = Field(..., gt=0, example=70.0)  # in kg
+    systolic_bp: Optional[int] = Field(None, gt=0, example=120)  # systolic blood pressure
+    diastolic_bp: Optional[int] = Field(None, gt=0, example=80)  # diastolic blood pressure
+    cholesterol: Optional[float] = Field(None, ge=0, example=180.0)  # total cholesterol
+    hdl: Optional[float] = Field(None, ge=0, example=50.0)  # HDL cholesterol
+    ldl: Optional[float] = Field(None, ge=0, example=100.0)  # LDL cholesterol
+    triglycerides: Optional[float] = Field(None, ge=0, example=150.0)
+    fasting_glucose: Optional[float] = Field(None, ge=0, example=85.0)
+    smoking: bool = Field(False, example=False)
+    alcohol_consumption: Optional[str] = Field(None, example="moderate")
+    exercise_minutes_per_week: Optional[int] = Field(None, ge=0, example=150)
+    family_history: Optional[Dict[str, bool]] = Field(None, example={"heart_disease": True, "diabetes": False})
+    chronic_conditions: Optional[List[str]] = Field(None, example=["asthma"])
+    medications: Optional[List[str]] = Field(None, example=["ibuprofen"])
+    sleep_hours: Optional[float] = Field(None, ge=0, le=24, example=7.5)
+    stress_level: Optional[int] = Field(None, ge=0, le=10, example=5)
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "age": 35,
+                "gender": "male",
+                "height": 175.0,
+                "weight": 70.0,
+                "systolic_bp": 120,
+                "diastolic_bp": 80,
+                "cholesterol": 180.0,
+                "hdl": 50.0,
+                "ldl": 100.0,
+                "triglycerides": 150.0,
+                "fasting_glucose": 85.0,
+                "smoking": False,
+                "alcohol_consumption": "moderate",
+                "exercise_minutes_per_week": 150,
+                "family_history": {"heart_disease": True, "diabetes": False},
+                "chronic_conditions": ["asthma"],
+                "medications": ["ibuprofen"],
+                "sleep_hours": 7.5,
+                "stress_level": 5
+            }
+        }
 
 class RiskAssessmentResponse(BaseModel):
     bmi: float
@@ -46,12 +75,42 @@ class RiskAssessmentResponse(BaseModel):
     risk_categories: Dict[str, Dict[str, Any]]
     recommendations: List[str]
     next_steps: List[str]
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "bmi": 22.9,
+                "bmi_category": "Normal weight",
+                "health_age": 33,
+                "overall_risk_score": 25.0,
+                "risk_categories": {
+                    "cardiovascular": {
+                        "risk_score": 2,
+                        "risk_level": "Low",
+                        "risk_factors": []
+                    },
+                    "metabolic": {
+                        "risk_score": 1,
+                        "risk_level": "Low",
+                        "risk_factors": []
+                    }
+                },
+                "recommendations": [
+                    "Maintain your current healthy lifestyle",
+                    "Regular check-ups are recommended"
+                ],
+                "next_steps": [
+                    "Consult with a healthcare provider to discuss these results",
+                    "Set up regular health check-ups"
+                ]
+            }
+        }
 
 # Helper functions for risk assessment calculations
 def calculate_bmi(weight: float, height: float) -> float:
     """Calculate BMI (weight in kg, height in cm)"""
     height_m = height / 100  # Convert cm to meters
-    return weight / (height_m * height_m)
+    return round(weight / (height_m * height_m), 1)
 
 def get_bmi_category(bmi: float) -> str:
     """Determine BMI category"""
@@ -101,7 +160,7 @@ def calculate_cardiovascular_risk(data: RiskAssessmentRequest) -> Dict[str, Any]
         risk_score += 4
         risk_factors.append({
             "factor": "Smoking",
-            "value": 1,
+            "value": 1.0,  # Converted to float for type consistency
             "recommendation": "Quitting smoking significantly reduces cardiovascular risk."
         })
     
@@ -121,15 +180,15 @@ def calculate_metabolic_risk(data: RiskAssessmentRequest) -> Dict[str, Any]:
     if bmi > 30:
         risk_score += 3
         risk_factors.append({
-            "factor": "Obesity",
-            "value": bmi,
+            "factor": "Obesity", 
+            "value": float(bmi),  # Ensure it's a float
             "recommendation": "Focus on weight management through diet and exercise."
         })
     elif bmi > 25:
         risk_score += 1
         risk_factors.append({
             "factor": "Overweight",
-            "value": bmi,
+            "value": float(bmi),  # Ensure it's a float
             "recommendation": "Modest weight loss can improve metabolic health."
         })
     
@@ -138,7 +197,7 @@ def calculate_metabolic_risk(data: RiskAssessmentRequest) -> Dict[str, Any]:
         risk_score += 2
         risk_factors.append({
             "factor": "Elevated Fasting Glucose",
-            "value": data.fasting_glucose,
+            "value": float(data.fasting_glucose),  # Ensure it's a float
             "recommendation": "Monitor blood sugar and consider dietary adjustments."
         })
     
@@ -150,80 +209,96 @@ def calculate_metabolic_risk(data: RiskAssessmentRequest) -> Dict[str, Any]:
 
 # Endpoints
 @router.post("/assess", response_model=RiskAssessmentResponse)
-async def assess_health_risks(data: RiskAssessmentRequest):
+async def assess_health_risks(data: RiskAssessmentRequest = Body(...)):
     """
     Assess health risks based on provided health parameters.
     Returns risk scores, categories, and recommendations.
     """
-    # Calculate BMI
-    bmi = calculate_bmi(data.weight, data.height)
-    bmi_category = get_bmi_category(bmi)
-    
-    # Calculate different risk categories
-    cardiovascular_risk = calculate_cardiovascular_risk(data)
-    metabolic_risk = calculate_metabolic_risk(data)
-    
-    # Calculate overall risk score (weighted average of category risks)
-    category_weights = {
-        "cardiovascular": 0.4,
-        "metabolic": 0.3,
-        # Add more categories with their weights
-    }
-    
-    category_scores = {
-        "cardiovascular": cardiovascular_risk["risk_score"],
-        "metabolic": metabolic_risk["risk_score"],
-        # Add more category scores
-    }
-    
-    overall_score = sum(
-        category_scores[cat] * weight 
-        for cat, weight in category_weights.items()
-    ) / sum(category_weights.values())
-    
-    # Scale to 0-100
-    normalized_score = min(100, max(0, overall_score * 10))
-    
-    # Generate recommendations based on risk factors
-    all_risk_factors = cardiovascular_risk["risk_factors"] + metabolic_risk["risk_factors"]
-    recommendations = [factor["recommendation"] for factor in all_risk_factors]
-    
-    # Add general recommendations based on the profile
-    if data.exercise_minutes_per_week is None or data.exercise_minutes_per_week < 150:
-        recommendations.append("Aim for at least 150 minutes of moderate exercise per week.")
-    
-    # Next steps
-    next_steps = [
-        "Consult with a healthcare provider to discuss these results",
-        "Set up regular health check-ups",
-        "Track your progress using our health tracker"
-    ]
-    
-    # Calculate health age (simplified algorithm)
-    health_age = data.age
-    if bmi > 30:
-        health_age += 5
-    if data.smoking:
-        health_age += 7
-    if data.exercise_minutes_per_week and data.exercise_minutes_per_week > 150:
-        health_age -= 3
-    
-    # Compile the response
-    response = RiskAssessmentResponse(
-        bmi=bmi,
-        bmi_category=bmi_category,
-        health_age=health_age,
-        overall_risk_score=normalized_score,
-        risk_categories={
-            "cardiovascular": cardiovascular_risk,
-            "metabolic": metabolic_risk,
-            # Add more categories
-        },
-        recommendations=list(set(recommendations)),  # Remove duplicates
-        next_steps=next_steps
-    )
-    
-    return response
+    try:
+        logger.info(f"Processing risk assessment request for age: {data.age}, gender: {data.gender}")
+        
+        # Calculate BMI
+        bmi = calculate_bmi(data.weight, data.height)
+        bmi_category = get_bmi_category(bmi)
+        
+        # Calculate different risk categories
+        cardiovascular_risk = calculate_cardiovascular_risk(data)
+        metabolic_risk = calculate_metabolic_risk(data)
+        
+        # Calculate overall risk score (weighted average of category risks)
+        category_weights = {
+            "cardiovascular": 0.4,
+            "metabolic": 0.3,
+            # Add more categories with their weights if needed
+        }
+        
+        category_scores = {
+            "cardiovascular": cardiovascular_risk["risk_score"],
+            "metabolic": metabolic_risk["risk_score"],
+            # Add more category scores if needed
+        }
+        
+        sum_weights = sum(category_weights.values())
+        if sum_weights > 0:  # Prevent division by zero
+            overall_score = sum(
+                category_scores[cat] * weight 
+                for cat, weight in category_weights.items()
+            ) / sum_weights
+        else:
+            overall_score = 0
+        
+        # Scale to 0-100
+        normalized_score = min(100, max(0, overall_score * 10))
+        
+        # Generate recommendations based on risk factors
+        all_risk_factors = cardiovascular_risk["risk_factors"] + metabolic_risk["risk_factors"]
+        recommendations = [factor["recommendation"] for factor in all_risk_factors]
+        
+        # Add general recommendations based on the profile
+        if data.exercise_minutes_per_week is None or data.exercise_minutes_per_week < 150:
+            recommendations.append("Aim for at least 150 minutes of moderate exercise per week.")
+        
+        if not recommendations:  # If no specific recommendations
+            recommendations.append("Maintain your current healthy lifestyle.")
+            recommendations.append("Regular check-ups are recommended.")
+        
+        # Next steps
+        next_steps = [
+            "Consult with a healthcare provider to discuss these results",
+            "Set up regular health check-ups",
+            "Track your progress using our health tracker"
+        ]
+        
+        # Calculate health age (simplified algorithm)
+        health_age = data.age
+        if bmi > 30:
+            health_age += 5
+        if data.smoking:
+            health_age += 7
+        if data.exercise_minutes_per_week and data.exercise_minutes_per_week > 150:
+            health_age -= 3
+        
+        # Compile the response
+        response = RiskAssessmentResponse(
+            bmi=bmi,
+            bmi_category=bmi_category,
+            health_age=health_age,
+            overall_risk_score=float(normalized_score),  # Ensure it's a float
+            risk_categories={
+                "cardiovascular": cardiovascular_risk,
+                "metabolic": metabolic_risk,
+                # Add more categories if needed
+            },
+            recommendations=list(set(recommendations)),  # Remove duplicates
+            next_steps=next_steps
+        )
+        
+        logger.info(f"Risk assessment completed successfully, overall score: {normalized_score}")
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error in risk assessment: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing risk assessment: {str(e)}")
 
 @router.get("/factors")
 async def get_risk_factors():
