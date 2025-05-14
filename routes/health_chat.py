@@ -1,6 +1,6 @@
-from fastapi import APIRouter, HTTPException, Depends, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel
-from typing import List, Dict, Optional
+from fastapi import APIRouter, HTTPException, Depends, WebSocket, WebSocketDisconnect, Body
+from pydantic import BaseModel, Field
+from typing import List, Dict, Optional, Any
 import json
 from datetime import datetime
 import logging
@@ -23,10 +23,20 @@ class Message(BaseModel):
     content: str
     timestamp: Optional[str] = None
 
+# Fixed ChatRoom model with explicit examples
 class ChatRoom(BaseModel):
-    room_id: str
-    name: str
-    description: Optional[str] = None
+    room_id: str = Field(..., example="room1")
+    name: str = Field(..., example="General Discussion")
+    description: Optional[str] = Field(None, example="A room for general health discussion")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "room_id": "room1",
+                "name": "General Discussion",
+                "description": "A room for general health discussion"
+            }
+        }
 
 # Mock database (in-memory storage)
 users_db = {}
@@ -87,22 +97,34 @@ async def logout_user(session_id: str):
     return {"message": f"User {username} logged out successfully"}
 
 # Chat room endpoints
-@router.post("/rooms")
+@router.post("/rooms", response_model=dict)
 async def create_chat_room(room: ChatRoom):
     """Create a new chat room."""
     if room.room_id in chat_rooms:
         raise HTTPException(status_code=400, detail="Room ID already exists")
     
-    chat_rooms[room.room_id] = {
+    # Create room data to store
+    room_data = {
         "name": room.name,
         "description": room.description,
         "created_at": datetime.now().isoformat()
     }
     
+    # Store in chat_rooms dictionary
+    chat_rooms[room.room_id] = room_data
+    
     # Initialize an empty list for this room's messages
     chat_messages[room.room_id] = []
     
-    return {"message": "Chat room created", "room": room}
+    # Return structured response matching the expected format
+    return {
+        "message": "Chat room created", 
+        "room": {
+            "room_id": room.room_id,
+            "name": room.name,
+            "description": room.description
+        }
+    }
 
 @router.get("/rooms")
 async def list_chat_rooms():
