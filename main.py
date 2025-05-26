@@ -15,45 +15,55 @@ from dotenv import load_dotenv
 
 # Explicitly load environment variables from .env file
 load_dotenv(dotenv_path=".env")
-print("Loaded ENV variables:", os.environ)  # Debugging
+print("Loaded ENV variables:", dict(os.environ))  # More readable debugging
 
 # Import config
-from config import settings  # Assuming you have a 'config.py' with settings
+from config import settings
 
 # Import routers from original application
 from routes.health_chat import router as health_chat_router
 from routes.risk_assessment import router as risk_assessment_router
 from routes.preventive_featured import router as preventive_featured_router
 from routes.search import router as search_router
-# Updated import for symptom checker
 from routes.symptom_checker import router as symptom_checker_router
-# Add import for health exploration
 from routes.health_exploration import router as health_exploration_router
 
 # Configure logging
-logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL, "INFO")) # default to INFO if LOG_LEVEL is not set
+logging.basicConfig(
+    level=getattr(logging, settings.LOG_LEVEL, "INFO"),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
-# Important fix: Create the FastAPI app without restricting openapi_url to API_PREFIX
+# Create the FastAPI app
 app = FastAPI(
     title=settings.APP_NAME,
     description=settings.APP_DESCRIPTION,
     version=settings.APP_VERSION,
-    openapi_url="/openapi.json" # OpenAPI schema accessible at the root
+    openapi_url="/openapi.json"
 )
 
-# Configure CORS - include FRONTEND_URL in origins
-cors_origins = settings.CORS_ORIGINS.copy()
-if settings.FRONTEND_URL not in cors_origins and settings.FRONTEND_URL != "*":
-    cors_origins.append(settings.FRONTEND_URL)
-
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
     allow_methods=settings.CORS_ALLOW_METHODS,
     allow_headers=settings.CORS_ALLOW_HEADERS,
 )
+
+# Add global exception handler for better error responses
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Global exception handler caught: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal server error",
+            "message": "An unexpected error occurred. Please try again later.",
+            "timestamp": datetime.now().isoformat()
+        }
+    )
 
 # Include routers from original application with explicit tags and prefixes
 app.include_router(
@@ -80,14 +90,12 @@ app.include_router(
     tags=["Search"]
 )
 
-# Include symptom checker router with explicit prefix
 app.include_router(
     symptom_checker_router,
     prefix=f"{settings.API_PREFIX}/symptom-checker",
     tags=["Symptom Checker"]
 )
 
-# Include health exploration router with explicit prefix
 app.include_router(
     health_exploration_router,
     prefix=f"{settings.API_PREFIX}/health-exploration",
@@ -112,11 +120,35 @@ chat_history = []
 
 @app.get("/", tags=["Root"])
 async def root():
-    return {"message": f"Welcome to {settings.APP_NAME} - {settings.APP_DESCRIPTION}"}
+    return {
+        "message": f"Welcome to {settings.APP_NAME} - {settings.APP_DESCRIPTION}",
+        "version": settings.APP_VERSION,
+        "status": "running"
+    }
 
 @app.get(f"{settings.API_PREFIX}/health", tags=["Health Check"])
 async def health_check():
-    return {"status": "healthy", "timestamp": datetime.now().isoformat(), "version": settings.APP_VERSION}
+    """Enhanced health check with system status"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "version": settings.APP_VERSION,
+        "openai_configured": settings.has_valid_openai_key,
+        "cors_origins": settings.CORS_ORIGINS,
+        "api_prefix": settings.API_PREFIX
+    }
+
+@app.get("/debug/config", tags=["Debug"])
+async def debug_config():
+    """Debug endpoint to check configuration (remove in production)"""
+    return {
+        "frontend_url": settings.FRONTEND_URL,
+        "cors_origins": settings.CORS_ORIGINS,
+        "has_openai_key": settings.has_valid_openai_key,
+        "api_prefix": settings.API_PREFIX,
+        "port": settings.PORT,
+        "host": settings.HOST
+    }
 
 # Socket.IO event handlers
 @sio.event
@@ -142,7 +174,6 @@ async def chat_message(sid, data):
         "timestamp": datetime.now().isoformat()
     }
     chat_history.append(message)
-    # Broadcast the message to all connected clients
     await sio.emit('chat_message', message)
 
 @sio.event
@@ -152,6 +183,13 @@ async def set_username(sid, data):
         connected_users[sid]["username"] = username
     logger.info(f"User {sid} set username to {username}")
     await sio.emit('user_joined', {"username": username})
+
+# Startup event
+@app.on_event("startup")
+async def startup_event():
+    logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    logger.info(f"OpenAI API configured: {settings.has_valid_openai_key}")
+    logger.info(f"CORS origins: {settings.CORS_ORIGINS}")
 
 if __name__ == "__main__":
     uvicorn.run(
